@@ -2,14 +2,16 @@ import json
 import math
 import numpy as np
 import kenlm
+import matplotlib.pyplot as plt
 
 def countSet (dataset):
     sentencesCount = len(dataset)
     wordsCount = 0
+    differentwords = len(getWords(dataset))
     for words, _ in dataset:
         for _ in words:
             wordsCount+=1
-    return (sentencesCount, wordsCount)       
+    return (sentencesCount, wordsCount, differentwords)       
 
 def getWords (dataset):
     return set(word for words, labels in dataset for word in words)
@@ -38,11 +40,11 @@ def getAll3grams (dataset):
                 dict3gram[gram]=1
     return dict3gram
 
-def merge (dict3gram1, dict3gram2):
+def merge (dict1, dict2):
     mergDict = {}
-    for (key, value) in dict3gram1.items():
-        mergDict[key] = value + dict3gram2.get(key,0)
-    for (key, value) in dict3gram2.items():
+    for (key, value) in dict1.items():
+        mergDict[key] = value + dict2.get(key,0)
+    for (key, value) in dict2.items():
         if key not in mergDict:
             mergDict[key]= value
     return mergDict
@@ -61,16 +63,23 @@ def klDivergence (train_set, test_set):
     for gram in all3grams:
         ptrain = probability (train3grams, gram, v, n)
         ptest = probability (test3grams, gram, v, n)
-        kl+= ptest * math.log10(ptest/ptrain)
+        kl+= ptest * math.log(ptest/ptrain)
     return kl
 
+def drawGraph(xvalues, yvalues, xlabel, ylabel, graphtitle):
+    plt.bar(xvalues, yvalues)
+    plt.xlabel(xlabel, fontsize=15)
+    plt.ylabel(ylabel, fontsize=15)
+    plt.xticks(xvalues, fontsize=10, rotation=30)
+    plt.title(graphtitle)
+    plt.show()
 """
 model = kenlm.Model('model.arpa')
 print(model.score('this is a sentence .', bos = True, eos = True))
 """
 
 train_sets = ["ewt", "gum", "lines", "partut"]
-test_sets = ["ewt", "foot", "gum", "lines", "natdis", "partut", "pud"]
+test_sets = ["ewt", "foot", "gum", "lines", "partut", "pud"]
 
 """
 #SHOW COUNT OF WORDS AND SENTENCES OF EACH
@@ -83,10 +92,21 @@ for test_set in test_sets:
     print(test_set,"test:",countSet(fileset))
 """
 
+
+labels = []
+percentages = []
+divergences = []
 for trainsetname in train_sets:
     train_set = json.load(open("data/en/en."+trainsetname+".train.json"))
     for testsetname in test_sets:
         test_set = json.load(open("data/en/en."+testsetname+".test.json"))
-        print("For", trainsetname,"train set and", testsetname, "test set")
-        print("Out for vocabulary:", outOfVocabulary(test_set, train_set))
-        #print("Kl-divergence:", klDivergence(train_set, test_set))
+        labels.append("("+trainsetname+","+testsetname+")")
+        percentages.append(round(outOfVocabulary(test_set, train_set) * 100, 2))
+        divergences.append(klDivergence(train_set, test_set))
+"""
+#Draw OOV percentages
+drawGraph(labels, percentages, '(Train set, test set)', 'Percentage of OOV words (%)', 'Percentage of Out of Vocabulary words for each combination of Train and Test sets')
+"""
+
+#Draw divergences
+drawGraph(labels, divergences, '(Train set, test set)', 'kl-Divergence', 'kl-Divergences for each combination of Train and Test sets')
